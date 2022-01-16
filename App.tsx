@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
-import React, { useState, useEffect, useRef } from 'react';
-import { Text, View, Button, Platform } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Button, Platform, Text, View } from 'react-native';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -11,13 +11,15 @@ Notifications.setNotificationHandler({
   }),
 });
 
-export default function App() {
+export default () => {
   const [notification, setNotification] = useState<any>(false);
+  const [token, setToken] = useState<string | null>(null);
+
   const notificationListener = useRef<any>();
   const responseListener = useRef<any>();
 
   useEffect(() => {
-    registerForPushNotificationsAsync()
+    registerForPushNotificationsAsync().then(token => token != null && setToken(token))
 
     notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
       setNotification(notification);
@@ -41,58 +43,67 @@ export default function App() {
         justifyContent: 'space-around',
       }}>
       <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+        <Text>Token: {token} </Text>
         <Text>Title: {notification && notification.request.content.title} </Text>
         <Text>Body: {notification && notification.request.content.body}</Text>
         <Text>Data: {notification && JSON.stringify(notification.request.content.data)}</Text>
       </View>
       <Button
         title="Press to schedule a notification"
-        onPress={async () => {
-          await schedulePushNotification();
-        }}
+        onPress={async () =>
+          await schedulePushNotification({
+            title: "Title",
+            body: "Message",
+            data: { data: "data" }
+          })
+        }
       />
     </View>
   );
 }
 
-async function schedulePushNotification() {
-  await Notifications.scheduleNotificationAsync({
-    content: {
-      title: "You've got mail! 📬",
-      body: 'Here is the notification body',
-      data: { data: 'goes here' },
-    },
-    trigger: { seconds: 1 },
-  });
+interface NotificationData {
+  title: string
+  body: string
+  data: any
 }
 
-async function registerForPushNotificationsAsync() {
+const schedulePushNotification = async ({ title, body, data }: NotificationData) =>
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title,
+      body,
+      data,
+    },
+    trigger: { seconds: .1 }
+  });
+
+
+const registerForPushNotificationsAsync = async () => {
   let token;
+
   if (Constants.isDevice) {
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
+
     let finalStatus = existingStatus;
-    if (existingStatus !== 'granted') {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
-    }
+
+    if (existingStatus !== 'granted') finalStatus = (await Notifications.requestPermissionsAsync()).status
+
     if (finalStatus !== 'granted') {
       alert('Failed to get push token for push notification!');
-      return;
+      return null;
     }
-    token = (await Notifications.getExpoPushTokenAsync()).data;
-    console.log(token);
-  } else {
-    alert('Must use physical device for Push Notifications');
-  }
 
-  if (Platform.OS === 'android') {
+    token = (await Notifications.getExpoPushTokenAsync()).data;
+
+    console.log(token);
+  } else alert('Must use physical device for Push Notifications');
+
+  if (Platform.OS === 'android')
     Notifications.setNotificationChannelAsync('default', {
       name: 'default',
       importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
-      lightColor: '#FF231F7C',
     });
-  }
 
   return token;
 }
