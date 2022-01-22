@@ -75,7 +75,7 @@ const schedulePushNotification = async ({ title, body, data }: NotificationData)
       body,
       data,
     },
-    trigger: { seconds: .1 }
+    trigger: { seconds: 1 }
   });
 
 
